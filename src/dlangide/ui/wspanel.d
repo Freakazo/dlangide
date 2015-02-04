@@ -45,6 +45,7 @@ class WorkspacePanel : DockWindow {
     }
 
     void onTreeItemSelected(TreeItems source, TreeItem selectedItem, bool activated) {
+		invalidate();
         if (!selectedItem)
             return;
         if (selectedItem.intParam == ProjectItemType.SourceFile) {

@@ -294,7 +294,8 @@ class ExternalProcess {
         assert(_stdout);
         Redirect redirect;
         char[][] params;
-        params ~= _program;
+        params.length = 1;
+        params[0] = _program;
         params ~= _args;
         if (!_stderr)
             redirect = Redirect.stdout | Redirect.stderrToStdout; //Redirect.stdin | 

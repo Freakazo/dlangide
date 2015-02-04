@@ -3,6 +3,7 @@ module dlangide.ui.dsourceedit;
 import dlangui.core.logger;
 import dlangui.widgets.editors;
 import dlangui.widgets.srcedit;
+import dlangui.widgets.widget;
 
 import ddc.lexer.textsource;
 import ddc.lexer.exceptions;
@@ -11,9 +12,17 @@ import ddc.lexer.tokenizer;
 import dlangide.workspace.workspace;
 import dlangide.workspace.project;
 import dlangide.ui.commands;
+import dlangide.builders.extprocess;
+import dlangide.ui.frame;
 
 import std.algorithm;
+import std.conv;
+import std.stdio;
+import std.string;
 
+interface SourceFileSelectionHandler {
+    bool onSourceFileSelected(ProjectSourceFile file, bool activate);
+}
 
 /// DIDE source file editor
 class DSourceEdit : SourceEdit {
@@ -32,6 +41,12 @@ class DSourceEdit : SourceEdit {
 	this() {
 		this("SRCEDIT");
 	}
+
+    IDEFrame _frame = null;
+
+    /// handle source file selection change
+    Signal!SourceFileSelectionHandler sourceFileSelectionListener;
+
     protected ProjectSourceFile _projectSourceFile;
     @property ProjectSourceFile projectSourceFile() { return _projectSourceFile; }
     /// load by filename
@@ -78,6 +93,100 @@ class DSourceEdit : SourceEdit {
             }
         }
         return super.handleAction(a);
+    }
+    
+
+    override bool onMouseEvent(MouseEvent event){
+        super.onMouseEvent(event);
+        ExternalProcess dcdProcess = new ExternalProcess();
+        char[][] args;
+        args ~= ["-l".dup, "-c".dup];
+        auto line = 0;
+        auto pos = 0;
+        auto bytes = 0;
+        dchar[] fileText = text.dup;
+        foreach(c; fileText) {
+            bytes++;
+            if(c == '\n') {
+                line++;
+            }
+            if(line == _caretPos.line) {
+                if(pos == _caretPos.pos)
+                    break;
+                pos++;
+            }
+        }
+        args ~= [to!string(bytes).dup];
+        args ~= [_projectSourceFile.filename().dup];
+
+        ProtectedTextStorage stdoutTarget = new ProtectedTextStorage();
+        if(event.lbutton().isDown() && isCtrlPressed == true) {
+            auto state = dcdProcess.run("dcd-client".dup, args, "/usr/bin".dup, stdoutTarget);
+            while(dcdProcess.poll() == ExternalProcessState.Running){ }
+            string[] outputLines = to!string(stdoutTarget.readText()).splitLines();
+            //TODO: Process output from DCD.
+            foreach(string outputLine ; outputLines) {
+                if(outputLine.indexOf("Not Found".dup) == -1) {
+                    auto split = outputLine.indexOf("\t");
+                    if(split == -1) {
+                        writeln("Could not find split");
+                        continue;
+                    }
+                    if(indexOf(outputLine[0 .. split],"stdin".dup) != -1) {
+                        writeln("Declaration is in current file. Can jump to it.");
+                        line = 0;
+                        pos = 0;
+                        bytes = 0;
+                        auto target = to!int(outputLine[split+1 .. $]);
+                        foreach(c; fileText) {
+                            if(bytes == target) {
+                                //We all good.
+                                _caretPos.line = line;
+                                _caretPos.pos = pos;
+                            }
+                            bytes++;
+                            if(c == '\n')
+                            {
+                                line++;
+                                pos = 0;
+                            }
+                            else
+                                pos++;
+                        }
+                    }
+                    else {
+                        ProjectSourceFile sourceFile = new ProjectSourceFile(outputLine[0 .. split]);
+                        if(_frame !is null) {
+                            writeln("Well I'm trying");
+                            load(outputLine[0 .. split]);
+                            _frame.openSourceFile(outputLine[0 .. split],projectSourceFile);
+                            writeln("Well I tried");
+                        }
+                    }
+                    writeln("Before Split ", outputLine[0 .. split]);
+                    writeln("After Split ", outputLine[split+1 .. $]);
+                }
+                else {
+                    writeln("Declaration not found");
+                }
+            }
+
+        }
+        return true;
+    }
+
+    bool isCtrlPressed = false;
+
+    override bool onKeyEvent(KeyEvent event){
+
+        if(event.action() == KeyAction.KeyDown && event.keyCode() == KeyCode.LCONTROL) {
+            isCtrlPressed = true;
+            writeln("Ctrl is pressed");
+        }
+        else if(event.action() == KeyAction.KeyUp && event.keyCode() == KeyCode.LCONTROL) {
+            isCtrlPressed = false;
+        }
+        return super.onKeyEvent(event);
     }
 }
 

@@ -107,7 +107,9 @@ class IDEFrame : AppFrame {
             _tabs.selectTab(index, true);
         } else {
             // open new file
+            Log.d("openSourceFile in new tab.", filename);
             DSourceEdit editor = new DSourceEdit(filename);
+            editor._frame = this;
             if (file ? editor.load(file) : editor.load(filename)) {
                 _tabs.addTab(editor, toUTF32(baseName(filename)));
                 index = _tabs.tabIndex(filename);
