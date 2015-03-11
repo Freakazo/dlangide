@@ -201,5 +201,16 @@ class Workspace : WorkspaceItem {
     }
 }
 
+
+import dlangui.core.settings;
+import dlangui.dialogs.settingsdialog;
+import dlangui.core.i18n;
+
+SettingsPage createWorkspacePages() {
+    SettingsPage res = new SettingsPage("workspace", UIString("Workspace"d));
+    res.addStringEdit("description", UIString("Description"));
+    return res;
+}
+
 /// global workspace
 __gshared Workspace currentWorkspace;
